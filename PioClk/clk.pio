@@ -1,0 +1,32 @@
+.program clk
+    .side_set 1
+    .define public T 1
+    .lang_opt pyhton sideset_init = pico.PIO.OUT_HIGH
+    .lang_opt pyhton out_init     = pico.PIO.OUT_HIGH
+    .lang_opt python out_shiftdir = 1
+    .wrap_target
+        nop     side 0 [T-1] ;sets the side_set pin to 0 for T cycles
+        nop     side 1 [T-1] ;sets the side_set pin to 1 for T cycles 
+    .wrap
+
+% c-sdk {
+    #include "hardware/clocks.h"
+    static inline void clk_program_init(PIO pio, uint sm, uint offset, uint pin, float freq) 
+    {
+        //setup gpio to be used by this sm
+        bool is_output_pin = false;
+        pio_gpio_init(pio, pin); //configure pin for use by PIO
+        pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, is_output_pin); //set PIO pin direction of 1 pin to out
+
+        //configrue the state machine
+        pio_sm_config c = clk_program_get_default_config(offset);
+        sm_config_set_sideset_pins(&c, pin);
+        int T = clk_T;
+        float div = clock_get_hz(clk_sys) / (freq * T); 
+        sm_config_set_clkdiv(&c, div); //not sure about this line...
+
+        //load the config onto the sm, start it later in the C program
+        pio_sm_init(pio, sm, offset, &c);
+//        pio_sm_set_enabled(pio, sm, true); 
+    }
+%}
